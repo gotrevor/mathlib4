@@ -117,7 +117,7 @@ end Algebra.IsAlgebraic
 /-- Characterize `IsNormalClosure` when the candidate normal closure is an intermediate field `M`
 of an ambient extension `L/F`: `M` is a normal closure of `K/F` iff every minimal polynomial of
 `K/F` splits in `M`, and `M` equals the normal closure of `K/F` computed in `L`. -/
-theorem IntermediateField.isNormalClosure_iff [Algebra.IsAlgebraic F K]
+lemma IntermediateField.isNormalClosure_iff [Algebra.IsAlgebraic F K]
     (M : IntermediateField F L) :
     IsNormalClosure F K M ↔
       (∀ x : K, ((minpoly F x).map (algebraMap F M)).Splits) ∧
