@@ -94,7 +94,6 @@ lemma isNormalClosure_iff : IsNormalClosure F K L ↔
     (∀ x : K, ((minpoly F x).map (algebraMap F L)).Splits) ∧ normalClosure F K L = ⊤ := by
   refine ⟨fun ⟨splits, h⟩ ↦ ⟨splits, ?_⟩, fun ⟨splits, h⟩ ↦ ⟨splits, ?_⟩⟩ <;>
     simpa only [normalClosure_eq_iSup_adjoin_of_splits splits] using h
--- TODO: IntermediateField.isNormalClosure_iff similar to IntermediateField.isSplittingField_iff
 
 set_option backward.isDefEq.respectTransparency false in
 include splits in
@@ -114,6 +113,35 @@ lemma isNormalClosure_normalClosure : IsNormalClosure F K (normalClosure F K L) 
   rw [AlgHom.map_fieldRange, val, AlgHom.val_comp_codRestrict]
 
 end Algebra.IsAlgebraic
+
+/-- Characterize `IsNormalClosure` when the candidate normal closure is an intermediate field `M`
+of an ambient extension `L/F`: `M` is a normal closure of `K/F` iff every minimal polynomial of
+`K/F` splits in `M`, and `M` equals the normal closure of `K/F` computed in `L`. -/
+theorem IntermediateField.isNormalClosure_iff [Algebra.IsAlgebraic F K]
+    (M : IntermediateField F L) :
+    IsNormalClosure F K M ↔
+      (∀ x : K, ((minpoly F x).map (algebraMap F M)).Splits) ∧
+      M = normalClosure F K L := by
+  rw [Algebra.IsAlgebraic.isNormalClosure_iff]
+  refine and_congr_right fun splits ↦ ?_
+  -- Bridge: pushing `normalClosure F K M` up via `M.val` gives `normalClosure F K L`.
+  have key : (normalClosure F K (↥M)).map M.val = normalClosure F K L := by
+    simp_rw [normalClosure_def, IntermediateField.map_iSup, AlgHom.map_fieldRange]
+    refine le_antisymm (iSup_le fun f ↦ le_iSup_of_le (M.val.comp f) le_rfl)
+      (iSup_le fun g ↦ ?_)
+    have hmem : ∀ x : K, g x ∈ M := fun x ↦ by
+      refine (((Algebra.IsAlgebraic.isAlgebraic (R := F) x).algHom g).isIntegral)
+        |>.mem_intermediateField_of_minpoly_splits ?_
+      rw [minpoly.algHom_eq g g.injective]
+      exact splits x
+    refine le_iSup_of_le (g.codRestrict M.toSubalgebra hmem) ?_
+    have hcomp : M.val.comp (g.codRestrict M.toSubalgebra hmem) = g :=
+      AlgHom.ext fun _ ↦ rfl
+    rw [hcomp]
+  refine ⟨fun h ↦ ?_, fun h ↦ ?_⟩
+  · rw [← key, h, ← AlgHom.fieldRange_eq_map, fieldRange_val]
+  · apply IntermediateField.map_injective M.val
+    rw [key, ← h, ← AlgHom.fieldRange_eq_map, fieldRange_val]
 
 /-- A normal closure of `K/F` embeds into any `L/F`
   where the minimal polynomials of `K/F` splits. -/
