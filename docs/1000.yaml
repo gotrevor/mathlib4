@@ -1433,6 +1433,9 @@ Q1149185X:
 
 Q1149185:
   title: Goodstein's theorem
+  authors: Trevor Morris
+  date: 2026
+  url: https://github.com/gotrevor/lean-gallery/blob/f11d1db78e/LeanGallery/Logic/Goodstein/Basic.lean#L105
 
 Q1149458:
   title: Compactness theorem
