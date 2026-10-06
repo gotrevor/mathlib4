@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2023 Yaël Dillies. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Yaël Dillies
+Authors: Yaël Dillies, Trevor Morris
 -/
 module
 
@@ -21,11 +21,12 @@ distinct non-consecutive Fibonacci numbers.
 * `Nat.zeckendorf`: Send a natural number to its Zeckendorf representation.
 * `Nat.zeckendorfEquiv`: Zeckendorf's theorem, in the form of an equivalence between natural numbers
   and Zeckendorf representations.
-
-## TODO
-
-We could prove that the order induced by `zeckendorfEquiv` on Zeckendorf representations is exactly
-the lexicographic order.
+* `List.sum_fib_lt_iff_lex`: comparing the natural numbers represented by two Zeckendorf
+  representations agrees with comparing the representations lexicographically.
+* `Nat.zeckendorf_lt_iff`: `m < n` if and only if the Zeckendorf representation of `m` precedes
+  that of `n` lexicographically.
+* `Nat.zeckendorfOrderIso`: the order induced by `zeckendorfEquiv` on Zeckendorf representations is
+  exactly the lexicographic order.
 
 ## Tags
 
@@ -67,6 +68,72 @@ lemma IsZeckendorfRep.sum_fib_lt : ∀ {n l}, IsZeckendorfRep l → (∀ a ∈ (
       fib a + (map fib l).sum < fib a + fib (a - 1) := by gcongr; exact sum_fib_lt hl.2 this
       _ ≤ fib n := by
         rw [add_comm, ← fib_add_one (hl.1.2.trans_lt' zero_lt_two).ne']; exact fib_mono (hn _ rfl)
+
+/-- The tail of a Zeckendorf representation is again a Zeckendorf representation. -/
+lemma IsZeckendorfRep.tail {a : ℕ} {l : List ℕ} (h : IsZeckendorfRep (a :: l)) :
+    IsZeckendorfRep l := by
+  simp only [IsZeckendorfRep, cons_append, isChain_iff_pairwise, pairwise_cons] at h ⊢
+  exact h.2
+
+/-- The head of a nonempty Zeckendorf representation is at least `2`. -/
+lemma IsZeckendorfRep.two_le_head {a : ℕ} {l : List ℕ} (h : IsZeckendorfRep (a :: l)) :
+    2 ≤ a := by
+  simp only [IsZeckendorfRep, cons_append, isChain_iff_pairwise, pairwise_cons] at h
+  have := h.1 0 (by simp)
+  omega
+
+/-- For Zeckendorf representations, comparing the represented numbers `(l.map fib).sum`
+agrees with comparing the (most-significant-first) index lists lexicographically. -/
+theorem sum_fib_lt_iff_lex :
+    ∀ (l₁ l₂ : List ℕ), IsZeckendorfRep l₁ → IsZeckendorfRep l₂ →
+      ((l₁.map fib).sum < (l₂.map fib).sum ↔ List.Lex (· < ·) l₁ l₂)
+  | [], [], _, _ => by
+      simp only [map_nil, List.sum_nil, lt_irrefl, false_iff]
+      exact fun h => by cases h
+  | [], b :: l₂, _, h₂ => by
+      simp only [map_nil, List.sum_nil, map_cons, List.sum_cons]
+      refine ⟨fun _ => Lex.nil, fun _ => ?_⟩
+      have : 0 < fib b := fib_pos.2 (by have := h₂.two_le_head; omega)
+      omega
+  | a :: l₁, [], h₁, _ => by
+      simp only [map_cons, List.sum_cons, map_nil, List.sum_nil]
+      exact ⟨fun h => absurd h (by omega), fun h => by cases h⟩
+  | a :: l₁, b :: l₂, h₁, h₂ => by
+      rcases lt_trichotomy a b with hab | hab | hab
+      · -- `a < b`: the `a`-led sum can't reach `fib b`, so both sides hold.
+        have hlt1 : ((a :: l₁).map fib).sum < fib (a + 1) := by
+          refine h₁.sum_fib_lt ?_
+          intro x hx
+          simp only [cons_append, head?_cons, Option.mem_some_iff] at hx
+          omega
+        have hb2 : fib b ≤ ((b :: l₂).map fib).sum := by
+          simp only [map_cons, List.sum_cons]; exact Nat.le_add_right _ _
+        refine iff_of_true ?_ (Lex.rel hab)
+        calc ((a :: l₁).map fib).sum
+            < fib (a + 1) := hlt1
+          _ ≤ fib b := fib_mono (by omega)
+          _ ≤ ((b :: l₂).map fib).sum := hb2
+      · -- `a = b`: strip the shared leading index and recurse on the tails.
+        subst hab
+        simp only [map_cons, List.sum_cons, add_lt_add_iff_left, lex_cons_iff]
+        exact sum_fib_lt_iff_lex l₁ l₂ h₁.tail h₂.tail
+      · -- `a > b`: mirror image of the first case; both sides are `False`.
+        have hlt2 : ((b :: l₂).map fib).sum < fib (b + 1) := by
+          refine h₂.sum_fib_lt ?_
+          intro x hx
+          simp only [cons_append, head?_cons, Option.mem_some_iff] at hx
+          omega
+        have ha2 : fib a ≤ ((a :: l₁).map fib).sum := by
+          simp only [map_cons, List.sum_cons]; exact Nat.le_add_right _ _
+        refine iff_of_false ?_ ?_
+        · have : ((b :: l₂).map fib).sum < ((a :: l₁).map fib).sum :=
+            lt_of_lt_of_le hlt2 (le_trans (fib_mono (by omega)) ha2)
+          omega
+        · intro h
+          cases h with
+          | rel hr => omega
+          | cons hr => omega
+  termination_by l₁ _ => l₁.length
 
 end List
 
@@ -177,5 +244,26 @@ def zeckendorfEquiv : ℕ ≃ {l // IsZeckendorfRep l} where
   invFun l := (map fib l).sum
   left_inv := sum_zeckendorf_fib
   right_inv l := Subtype.ext <| zeckendorf_sum_fib l.2
+
+/-- **Zeckendorf's theorem, ordered form.** `m < n` if and only if the Zeckendorf representation
+of `m` precedes that of `n` lexicographically (most-significant index first). -/
+theorem zeckendorf_lt_iff {m n : ℕ} :
+    m < n ↔ List.Lex (· < ·) (zeckendorf m) (zeckendorf n) := by
+  conv_lhs => rw [← sum_zeckendorf_fib m, ← sum_zeckendorf_fib n]
+  exact List.sum_fib_lt_iff_lex _ _ (isZeckendorfRep_zeckendorf m) (isZeckendorfRep_zeckendorf n)
+
+/-- `m ≤ n` if and only if the Zeckendorf representation of `m` is at most that of `n`
+lexicographically. -/
+theorem zeckendorf_le_iff {m n : ℕ} :
+    zeckendorf m ≤ zeckendorf n ↔ m ≤ n := by
+  rw [← not_lt, ← not_lt]
+  exact not_congr zeckendorf_lt_iff.symm
+
+/-- The order induced by `zeckendorfEquiv` on Zeckendorf representations is exactly the
+lexicographic order: `zeckendorfEquiv` is an order isomorphism from `ℕ` (with its usual order)
+to the Zeckendorf representations ordered as lists. -/
+def zeckendorfOrderIso : ℕ ≃o {l : List ℕ // IsZeckendorfRep l} where
+  toEquiv := zeckendorfEquiv
+  map_rel_iff' := zeckendorf_le_iff
 
 end Nat
